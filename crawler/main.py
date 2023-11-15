@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException
-import subprocess
-import json
-import redis
 import hashlib
+import json
 import os
+import redis
+import subprocess
+
+from fastapi import FastAPI, HTTPException
+from typing import List, Dict
 
 app = FastAPI()
 
