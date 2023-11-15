@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0  # Default Redis DB, change as needed
+
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
