@@ -5,9 +5,11 @@ import redis
 import subprocess
 
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 from typing import List, Dict
 
 app = FastAPI()
+
 
 # Initialize Redis client
 redis_client = redis.Redis(
@@ -17,8 +19,20 @@ redis_client = redis.Redis(
 )
 
 
-@app.post("/crawl")
-async def crawl(url: str, path: str, max_depth: int = 1):
+class CrawlInput(BaseModel):
+    url: str
+    path: str
+    max_depth: int = 1
+
+
+class CrawlOutput(BaseModel):
+    data: List[Dict[str, str]]
+    error: str = None
+
+
+@app.post("/crawl", response_model=CrawlOutput)
+async def crawl(inp: CrawlInput):
+    url, path, max_depth = inp.url, inp.path, inp.max_depth
     # Create a unique key based on URL and path
     unique_key = hashlib.sha256(f"{url}{path}{max_depth}".encode()).hexdigest()
 
@@ -60,7 +74,7 @@ async def crawl(url: str, path: str, max_depth: int = 1):
         with open("output.json") as f:
             data = json.load(f)
         redis_client.set(unique_key, json.dumps(data))
-        return data
+        return {"data": data}
     except Exception as e:
         with open("output.json") as f:
             data = f.read()
