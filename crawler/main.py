@@ -17,7 +17,7 @@ redis_client = redis.Redis(
 )
 
 
-@app.get("/crawl")
+@app.post("/crawl")
 async def crawl(url: str, path: str, max_depth: int = 1):
     # Create a unique key based on URL and path
     unique_key = hashlib.sha256(f"{url}{path}{max_depth}".encode()).hexdigest()
