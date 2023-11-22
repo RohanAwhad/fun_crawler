@@ -6,7 +6,7 @@ import subprocess
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 app = FastAPI()
 
@@ -25,12 +25,12 @@ class CrawlInput(BaseModel):
     max_depth: int = 1
 
 
-class CrawlOutput(BaseModel):
-    data: List[Dict[str, str]]
-    error: str = None
+# class CrawlOutput(BaseModel):
+#     data: List[Dict[str, List[str]]]
+#     error: str = None
 
 
-@app.post("/crawl", response_model=CrawlOutput)
+@app.post("/crawl")  # , response_model=CrawlOutput)
 async def crawl(inp: CrawlInput):
     url, path, max_depth = inp.url, inp.path, inp.max_depth
     # Create a unique key based on URL and path
@@ -38,7 +38,7 @@ async def crawl(inp: CrawlInput):
 
     # Check if the data is in cache
     if (cached_data := redis_client.get(unique_key)) is not None:
-        return json.loads(cached_data)
+        return {"data": json.loads(cached_data)}
 
     # Call the Scrapy spider using subprocess
     process = subprocess.Popen(
