@@ -3,7 +3,7 @@ import json
 import os
 import redis
 import subprocess
-import urlparse
+import urllib.parse as urlparse
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
