@@ -5,12 +5,12 @@ FROM python:3.11
 WORKDIR /usr/src/app
 
 # Copy the current directory contents into the container at /usr/src/app
-COPY crawler/requirements.txt .
+COPY requirements.txt .
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./crawler/custom_spider.py .
+COPY ./crawler/custom_spider.py ./crawler/
 COPY ./crawler/main.py .
 
 # Make port 8000 available to the world outside this container
