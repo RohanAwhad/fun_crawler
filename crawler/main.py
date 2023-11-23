@@ -3,6 +3,7 @@ import json
 import os
 import redis
 import subprocess
+import urlparse
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -22,11 +23,18 @@ if not os.path.exists(SPIDER_FILE):
 # Initialize Redis client
 redis_client = None
 try:
-    redis_client = redis.Redis(
-        host=os.getenv("REDIS_HOST", "localhost"),
-        port=os.getenv("REDIS_PORT", 6379),
-        db=int(os.getenv("REDIS_DB", 0)),
-    )
+    url = os.getenv("REDISCLOUD_URL", None)
+    if url is not None:
+        url = urlparse.urlparse(url)
+        redis_client = redis.Redis(
+            host=url.hostname, port=url.port, password=url.password
+        )
+    else:
+        redis_client = redis.Redis(
+            host=os.getenv("REDIS_HOST", "localhost"),
+            port=os.getenv("REDIS_PORT", 6379),
+            db=int(os.getenv("REDIS_DB", 0)),
+        )
 except Exception as e:
     print("Error connecting to Redis")
     print(e)
