@@ -6,17 +6,30 @@ import subprocess
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 
 app = FastAPI()
 
+# get cwd
+spider_dir = os.getcwd()
+if not spider_dir.endswith("crawler"):
+    spider_dir = os.path.join(spider_dir, "crawler")
+SPIDER_FILE = os.path.join(spider_dir, "custom_spider.py")
+if not os.path.exists(SPIDER_FILE):
+    raise Exception("Spider file not found")
+
 
 # Initialize Redis client
-redis_client = redis.Redis(
-    host=os.getenv("REDIS_HOST", "localhost"),
-    port=os.getenv("REDIS_PORT", 6379),
-    db=int(os.getenv("REDIS_DB", 0)),
-)
+redis_client = None
+try:
+    redis_client = redis.Redis(
+        host=os.getenv("REDIS_HOST", "localhost"),
+        port=os.getenv("REDIS_PORT", 6379),
+        db=int(os.getenv("REDIS_DB", 0)),
+    )
+except Exception as e:
+    print("Error connecting to Redis")
+    print(e)
 
 
 class CrawlInput(BaseModel):
@@ -25,29 +38,35 @@ class CrawlInput(BaseModel):
     max_depth: int = 1
 
 
-# class CrawlOutput(BaseModel):
-#     data: List[Dict[str, List[str]]]
-#     error: str = None
+class CrawlOutput(BaseModel):
+    data: Union[List[Optional[str]], str]
+    error: Optional[str] = None
 
 
-@app.post("/crawl")  # , response_model=CrawlOutput)
+@app.post("/crawl", response_model=CrawlOutput)
 async def crawl(inp: CrawlInput):
     url, path, max_depth = inp.url, inp.path, inp.max_depth
     # Create a unique key based on URL and path
     unique_key = hashlib.sha256(f"{url}{path}{max_depth}".encode()).hexdigest()
 
-    # Check if the data is in cache
-    if (cached_data := redis_client.get(unique_key)) is not None:
-        return {"data": json.loads(cached_data)}
+    try:
+        # Check if the data is in cache
+        if redis_client is not None:
+            if (cached_data := redis_client.get(unique_key)) is not None:
+                return {"data": json.loads(cached_data)}
+    except Exception as e:
+        print("Error fetching data from cache")
+        print(e)
 
     # Call the Scrapy spider using subprocess
+    print("calling spider")
     process = subprocess.Popen(
         [
             "python3",
             "-m",
             "scrapy",
             "runspider",
-            "custom_spider.py",
+            SPIDER_FILE,
             "-a",
             f"start_url={url}",
             "-a",
@@ -73,8 +92,40 @@ async def crawl(inp: CrawlInput):
     try:
         with open("output.json") as f:
             data = json.load(f)
-        redis_client.set(unique_key, json.dumps(data))
-        return {"data": data}
+
+        # transform the data
+        all_links = set()
+        for item in data:
+            url = item["url"]
+            links = item["links"]
+            domain = "/".join(url.split("/")[:3])
+
+            # Remove the query params from the link
+            links = [link.split("?")[0] for link in links]
+            links = [link for link in links if link]
+
+            # form the absolute links
+            for link in links:
+                if link.startswith("/"):
+                    final_link = domain + link
+                    all_links.add(final_link)
+                # check if link starts with alphabets
+                elif link[0].isalpha():
+                    final_link = url + "/" + link
+                    all_links.add(final_link)
+
+        if len(all_links) == 0:
+            return HTTPException(status_code=500, detail="No links found")
+
+        # Cache the data
+        try:
+            if redis_client is not None:
+                redis_client.set(unique_key, json.dumps(all_links))
+        except Exception as e:
+            print("Error caching data")
+            print(e)
+
+        return {"data": list(all_links), "error": None}
     except Exception as e:
         with open("output.json") as f:
             data = f.read()
