@@ -1,4 +1,4 @@
-import new_crawler
+import crawler.new_crawler
 
 import hashlib
 import json
